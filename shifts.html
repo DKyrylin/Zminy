@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Зміни</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Unbounded:wght@400;700&display=swap');
+  :root {
+    --bg:#0d0d0d;--surface:#161616;--surface2:#1f1f1f;--border:#2a2a2a;
+    --accent:#f5c518;--accent2:#e8a000;--danger:#ff4444;--success:#4caf50;
+    --text:#f0f0f0;--text2:#888;--double:#ff6b35;--radius:12px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;min-height:100vh;max-width:430px;margin:0 auto;padding-bottom:80px;}
+
+  .header{padding:20px 16px 12px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:100;}
+  .header-title{font-family:'Unbounded',sans-serif;font-size:18px;font-weight:700;color:var(--accent);}
+  .header-sub{font-size:10px;color:var(--text2);margin-top:2px;}
+  .sync-indicator{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--text2);margin-left:6px;vertical-align:middle;}
+  .sync-indicator.synced{background:var(--success);}
+  .sync-indicator.syncing{background:var(--accent);animation:pulse 1s infinite;}
+  .sync-indicator.error{background:var(--danger);}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
+
+  .progress-section{padding:14px 16px;border-bottom:1px solid var(--border);}
+  .progress-labels{display:flex;justify-content:space-between;margin-bottom:6px;}
+  .progress-earned{font-size:16px;font-weight:700;color:var(--accent);}
+  .progress-goal{font-size:16px;font-weight:700;color:var(--text2);}
+  .progress-sublabel{font-size:10px;color:var(--text2);margin-top:2px;}
+  .progress-bar-wrap{height:8px;background:var(--surface2);border-radius:4px;overflow:hidden;margin-top:6px;}
+  .progress-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:4px;transition:width 0.5s ease;}
+  .progress-stats{display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:var(--text2);}
+  .progress-stats span{color:var(--text);}
+
+  .tabs{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:var(--surface);border-top:1px solid var(--border);display:flex;z-index:200;}
+  .tab-btn{flex:1;padding:12px 4px 10px;background:none;border:none;color:var(--text2);font-family:'JetBrains Mono',monospace;font-size:10px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;}
+  .tab-btn.active{color:var(--accent);}
+  .tab-icon{font-size:18px;}
+
+  .page{display:none;}.page.active{display:block;}
+
+  .month-nav{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;}
+  .month-nav-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);width:36px;height:36px;border-radius:8px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;}
+  .month-label{font-family:'Unbounded',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:1px;}
+
+  .calendar-grid{padding:0 10px;}
+  .cal-weekdays{display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:4px;}
+  .cal-wd{text-align:center;font-size:9px;color:var(--text2);padding:4px 0;font-weight:600;}
+  .cal-days{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+
+  .cal-day{aspect-ratio:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:4px 2px 2px;position:relative;overflow:hidden;min-height:46px;}
+  .cal-day:active{background:var(--surface2);}
+  .cal-day.empty{background:transparent;border-color:transparent;cursor:default;}
+  .cal-day.today{border-color:var(--accent);}
+  .cal-day.has-shift{background:#1a1800;border-color:#3a3000;}
+  .cal-day.is-double-day{background:#110800;border-color:#ff6b3566;}
+  .cal-day-num{font-size:11px;font-weight:600;color:var(--text2);line-height:1;}
+  .cal-day.today .cal-day-num{color:var(--accent);}
+  .cal-day.is-double-day .cal-day-num{color:var(--double);}
+  .cal-day-shift{font-size:7px;color:var(--accent);text-align:center;line-height:1.3;margin-top:2px;width:100%;white-space:pre-line;}
+  .cal-day-badges{display:flex;gap:2px;margin-top:1px;flex-wrap:wrap;justify-content:center;}
+  .badge-correction{font-size:7px;color:var(--danger);}
+  .badge-double{font-size:7px;color:var(--double);}
+
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:500;display:none;align-items:flex-end;justify-content:center;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--surface);border-radius:20px 20px 0 0;border-top:1px solid var(--border);width:100%;max-width:430px;padding:20px 20px 44px;animation:slideUp 0.25s ease;}
+  @keyframes slideUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
+  .modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px;}
+  .modal-title{font-family:'Unbounded',sans-serif;font-size:14px;font-weight:700;margin-bottom:16px;color:var(--accent);}
+  .modal-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .modal-label{font-size:11px;color:var(--text2);width:100px;flex-shrink:0;}
+  .modal-input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:14px;padding:10px 12px;outline:none;-webkit-appearance:none;}
+  .modal-input:focus{border-color:var(--accent);}
+  .modal-unit{font-size:10px;color:var(--text2);width:40px;}
+  .modal-check-row{display:flex;align-items:center;gap:12px;margin-bottom:10px;padding:10px 12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);cursor:pointer;}
+  .modal-check-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--text2);cursor:pointer;flex-shrink:0;}
+  .modal-check-label{font-size:12px;color:var(--text2);flex:1;}
+  .modal-btns{display:flex;gap:10px;margin-top:16px;}
+  .btn{flex:1;padding:14px;border:none;border-radius:10px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;cursor:pointer;}
+  .btn:active{opacity:0.7;}
+  .btn-primary{background:var(--accent);color:#000;}
+  .btn-danger{background:var(--danger);color:#fff;}
+  .btn-ghost{background:var(--surface2);color:var(--text);border:1px solid var(--border);}
+
+  .settings-section{padding:16px;}
+  .settings-title{font-family:'Unbounded',sans-serif;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;margin-top:20px;}
+  .settings-title:first-child{margin-top:0;}
+  .setting-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;}
+  .setting-label{font-size:12px;color:var(--text2);flex:1;}
+  .setting-input{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;padding:8px 12px;width:120px;text-align:right;outline:none;-webkit-appearance:none;}
+  .setting-input:focus{border-color:var(--accent);}
+  .setting-unit{font-size:11px;color:var(--text2);min-width:20px;}
+
+  .double-dates-list{margin-bottom:8px;}
+  .double-date-item{background:var(--surface);border:1px solid var(--double);border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;}
+  .double-date-label{font-size:13px;color:var(--double);font-weight:600;}
+  .double-date-remove{background:none;border:none;color:var(--text2);font-size:16px;cursor:pointer;padding:4px 8px;}
+  .add-date-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
+  .add-date-input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:14px;padding:10px 12px;outline:none;-webkit-appearance:none;}
+  .add-date-input:focus{border-color:var(--double);}
+  .add-date-btn{background:var(--double);border:none;border-radius:8px;color:#fff;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;padding:10px 16px;cursor:pointer;}
+
+  .sync-btn{width:100%;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;cursor:pointer;color:var(--text);margin-bottom:8px;text-align:left;}
+  .sync-btn:active{opacity:0.7;}
+
+  .save-btn-wrap{padding:0 16px 16px;}
+  .save-btn{width:100%;padding:16px;background:var(--accent);border:none;border-radius:var(--radius);font-family:'Unbounded',sans-serif;font-size:13px;font-weight:700;color:#000;cursor:pointer;letter-spacing:0.5px;}
+
+  .history-list{padding:16px;}
+  .history-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;}
+  .history-month{font-family:'Unbounded',sans-serif;font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px;}
+  .history-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .history-stat{font-size:10px;color:var(--text2);}
+  .history-stat span{color:var(--text);font-weight:600;}
+  .history-bar-wrap{height:4px;background:var(--surface2);border-radius:2px;margin-top:10px;overflow:hidden;}
+  .history-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:2px;}
+
+  .unsigned-alert{margin:0 16px 12px;background:#1a0000;border:1px solid var(--danger);border-radius:10px;padding:10px 14px;font-size:11px;color:var(--danger);display:none;}
+  .unsigned-alert.show{display:block;}
+
+  .toast{position:fixed;top:80px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 20px;font-size:12px;color:var(--text);z-index:999;opacity:0;transition:opacity 0.2s;pointer-events:none;white-space:nowrap;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">⚡ ЗМІНИ <span class="sync-indicator" id="syncDot" title="синхронізація"></span></div>
+  <div class="header-sub" id="headerSub"></div>
+</div>
+
+<div class="progress-section">
+  <div class="progress-labels">
+    <div><div class="progress-earned" id="earnedAmount">0 ₴</div><div class="progress-sublabel">зароблено</div></div>
+    <div style="text-align:right"><div class="progress-goal" id="goalAmount">0 ₴</div><div class="progress-sublabel">мета</div></div>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressBar" style="width:0%"></div></div>
+  <div class="progress-stats">
+    <div>годин: <span id="totalHours">0</span></div>
+    <div>змін: <span id="totalShifts">0</span></div>
+    <div><span id="progressPct">0</span>% мети</div>
+  </div>
+</div>
+
+<div id="unsignedAlert" class="unsigned-alert"></div>
+
+<div id="pageCalendar" class="page active">
+  <div class="month-nav">
+    <button class="month-nav-btn" onclick="prevMonth()">‹</button>
+    <div class="month-label" id="monthLabel"></div>
+    <button class="month-nav-btn" onclick="nextMonth()">›</button>
+  </div>
+  <div class="calendar-grid">
+    <div class="cal-weekdays">
+      <div class="cal-wd">Пн</div><div class="cal-wd">Вт</div><div class="cal-wd">Ср</div>
+      <div class="cal-wd">Чт</div><div class="cal-wd">Пт</div><div class="cal-wd">Сб</div><div class="cal-wd">Нд</div>
+    </div>
+    <div class="cal-days" id="calDays"></div>
+  </div>
+</div>
+
+<div id="pageHistory" class="page">
+  <div class="history-list" id="historyList"></div>
+</div>
+
+<div id="pageSettings" class="page">
+  <div class="settings-section">
+    <div class="settings-title">Оплата</div>
+    <div class="setting-row">
+      <div class="setting-label">Погодинна ставка до податків</div>
+      <input class="setting-input" type="number" id="settingHourly" placeholder="54.04" inputmode="decimal" step="0.01">
+      <div class="setting-unit">₴</div>
+    </div>
+    <div class="settings-title">Мета</div>
+    <div class="setting-row">
+      <div class="setting-label">Сума мети на місяць</div>
+      <input class="setting-input" type="number" id="settingGoal" placeholder="24000" inputmode="numeric">
+      <div class="setting-unit">₴</div>
+    </div>
+    <div class="settings-title">Подвійна ставка 2×</div>
+    <div style="font-size:10px;color:var(--text2);margin-bottom:10px;">Години що потрапляють у ці дні рахуються по 2×</div>
+    <div class="double-dates-list" id="doubleDatesList"></div>
+    <div class="add-date-row">
+      <input class="add-date-input" type="date" id="addDateInput">
+      <button class="add-date-btn" onclick="addDoubleDate()">+ Додати</button>
+    </div>
+    <div class="settings-title">Хмара</div>
+    <button class="sync-btn" onclick="syncToCloud()">☁️ Зберегти в хмару зараз</button>
+    <button class="sync-btn" onclick="loadFromCloud()">⬇️ Завантажити з хмари</button>
+    <div style="font-size:10px;color:var(--text2);margin-top:4px;">Дані автоматично зберігаються після кожної зміни</div>
+  </div>
+  <div class="save-btn-wrap" style="margin-top:8px">
+    <button class="save-btn" onclick="saveSettings()">ЗБЕРЕГТИ</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('calendar',this)"><span class="tab-icon">📅</span><span>Зміни</span></button>
+  <button class="tab-btn" onclick="switchTab('history',this)"><span class="tab-icon">📊</span><span>Історія</span></button>
+  <button class="tab-btn" onclick="switchTab('settings',this)"><span class="tab-icon">⚙️</span><span>Налаш.</span></button>
+</div>
+
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modalTitle">Зміна</div>
+    <div class="modal-row">
+      <div class="modal-label">Початок</div>
+      <input class="modal-input" type="time" id="mStart" value="22:45">
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">Кінець</div>
+      <input class="modal-input" type="time" id="mEnd" value="07:15">
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">Початок обіду</div>
+      <input class="modal-input" type="time" id="mLunchStart">
+      <div class="modal-unit">30 хв</div>
+    </div>
+    <label class="modal-check-row">
+      <input type="checkbox" id="mCorrection">
+      <span class="modal-check-label">Є коригування — треба підпис</span>
+    </label>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeModal()">Скасувати</button>
+      <button class="btn btn-danger" id="btnDelete" onclick="deleteShift()" style="display:none">Видалити</button>
+      <button class="btn btn-primary" onclick="saveShift()">Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── SUPABASE CONFIG ───────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://pcezpzccwxnpqwypdked.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBjZXpwemNjd3hucHF3eXBka2VkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDE4MjQsImV4cCI6MjA5NjY3NzgyNH0.-3D5EyHBRIUcxNGNNloOSVzrYTt6r4iLNczTWLOXr8E';
+const TABLE = 'shifts_data';
+const ROW_ID = 1;
+
+const MONTHS_UK=['Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'];
+
+let state={shifts:{},doubleDates:[],settings:{hourlyRate:54.04,goal:24000}};
+let viewYear,viewMonth,editingDate=null;
+let syncTimeout=null;
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+async function init(){
+  const saved=localStorage.getItem('zminy_v3');
+  if(saved){try{state=JSON.parse(saved);}catch(e){}}
+  if(!state.doubleDates)state.doubleDates=[];
+  const now=new Date();
+  viewYear=now.getFullYear();viewMonth=now.getMonth();
+  loadSettingsUI();renderAll();
+  // Try load from cloud
+  await loadFromCloud(true);
+}
+
+// ── SUPABASE ──────────────────────────────────────────────────────────────
+function setSyncStatus(s){
+  const dot=document.getElementById('syncDot');
+  dot.className='sync-indicator '+s;
+}
+
+async function syncToCloud(manual=false){
+  setSyncStatus('syncing');
+  try{
+    const json=JSON.stringify(state);
+    // Try update first
+    const upd=await fetch(`${SUPABASE_URL}/rest/v1/${TABLE}?id=eq.${ROW_ID}`,{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+      body:JSON.stringify({data:json})
+    });
+    if(upd.status===404||upd.status===0||(upd.ok&&upd.status===200)){
+      // Check if row exists
+      const check=await fetch(`${SUPABASE_URL}/rest/v1/${TABLE}?id=eq.${ROW_ID}&select=id`,{
+        headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+      });
+      const rows=await check.json();
+      if(!rows||rows.length===0){
+        // Insert
+        await fetch(`${SUPABASE_URL}/rest/v1/${TABLE}`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+          body:JSON.stringify({id:ROW_ID,data:json})
+        });
+      }
+    }
+    setSyncStatus('synced');
+    if(manual)showToast('☁️ Збережено в хмару');
+  }catch(e){
+    setSyncStatus('error');
+    if(manual)showToast('⚠️ Помилка синхронізації');
+  }
+}
+
+async function loadFromCloud(silent=false){
+  setSyncStatus('syncing');
+  try{
+    const res=await fetch(`${SUPABASE_URL}/rest/v1/${TABLE}?id=eq.${ROW_ID}&select=data`,{
+      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    });
+    const rows=await res.json();
+    if(rows&&rows.length>0&&rows[0].data){
+      const cloudState=JSON.parse(rows[0].data);
+      if(!cloudState.doubleDates)cloudState.doubleDates=[];
+      state=cloudState;
+      localStorage.setItem('zminy_v3',JSON.stringify(state));
+      loadSettingsUI();renderAll();
+      setSyncStatus('synced');
+      if(!silent)showToast('⬇️ Дані завантажено з хмари');
+    }else{
+      setSyncStatus('synced');
+      // No cloud data yet, push local
+      await syncToCloud();
+    }
+  }catch(e){
+    setSyncStatus('error');
+    if(!silent)showToast('⚠️ Не вдалося завантажити');
+  }
+}
+
+function saveAndSync(){
+  localStorage.setItem('zminy_v3',JSON.stringify(state));
+  clearTimeout(syncTimeout);
+  syncTimeout=setTimeout(()=>syncToCloud(),1500);
+}
+
+// ── SETTINGS ──────────────────────────────────────────────────────────────
+function loadSettingsUI(){
+  document.getElementById('settingHourly').value=state.settings.hourlyRate;
+  document.getElementById('settingGoal').value=state.settings.goal;
+  renderDoubleDatesList();
+}
+function saveSettings(){
+  state.settings.hourlyRate=parseFloat(document.getElementById('settingHourly').value)||54.04;
+  state.settings.goal=parseFloat(document.getElementById('settingGoal').value)||24000;
+  saveAndSync();renderAll();
+  const btn=document.querySelector('.save-btn');
+  btn.textContent='✓ ЗБЕРЕЖЕНО';
+  setTimeout(()=>btn.textContent='ЗБЕРЕГТИ',1500);
+}
+
+// ── DOUBLE DATES ──────────────────────────────────────────────────────────
+function renderDoubleDatesList(){
+  const list=document.getElementById('doubleDatesList');
+  list.innerHTML='';
+  const sorted=[...state.doubleDates].sort();
+  if(!sorted.length){list.innerHTML='<div style="font-size:11px;color:var(--text2);margin-bottom:8px;">Немає дат</div>';return;}
+  for(const d of sorted){
+    const[y,m,day]=d.split('-');
+    const item=document.createElement('div');item.className='double-date-item';
+    item.innerHTML=`<span class="double-date-label">2× ${day}.${m}.${y}</span><button class="double-date-remove" onclick="removeDoubleDate('${d}')">✕</button>`;
+    list.appendChild(item);
+  }
+}
+function addDoubleDate(){
+  const val=document.getElementById('addDateInput').value;
+  if(!val)return;
+  if(!state.doubleDates.includes(val)){state.doubleDates.push(val);saveAndSync();renderDoubleDatesList();renderCalendar();}
+  document.getElementById('addDateInput').value='';
+}
+function removeDoubleDate(d){
+  state.doubleDates=state.doubleDates.filter(x=>x!==d);
+  saveAndSync();renderDoubleDatesList();renderCalendar();
+}
+
+// ── EARNINGS CALC ─────────────────────────────────────────────────────────
+function calcShiftEarnings(shift,dateKey){
+  const rate=state.settings.hourlyRate;
+  const[sh,sm]=shift.start.split(':').map(Number);
+  const[eh,em]=shift.end.split(':').map(Number);
+  const startMin=sh*60+sm;
+  let endMin=eh*60+em;
+  const crossesMidnight=endMin<=startMin;
+  if(crossesMidnight)endMin+=24*60;
+
+  let lunchThisDay=0,lunchNextDay=0;
+  if(shift.lunchStart){
+    const[lh,lm]=shift.lunchStart.split(':').map(Number);
+    let lMin=lh*60+lm;
+    if(crossesMidnight&&lMin<startMin)lMin+=24*60;
+    if(lMin>=startMin&&lMin<endMin){
+      if(!crossesMidnight||lMin<24*60)lunchThisDay=30;
+      else lunchNextDay=30;
+    }
+  }
+
+  const thisDateDouble=state.doubleDates.includes(dateKey);
+  let nextDateDouble=false;
+  if(crossesMidnight&&dateKey){
+    const[y,m,d]=dateKey.split('-').map(Number);
+    const nd=new Date(y,m-1,d);nd.setDate(nd.getDate()+1);
+    nextDateDouble=state.doubleDates.includes(dk(nd.getFullYear(),nd.getMonth()+1,nd.getDate()));
+  }
+
+  if(!crossesMidnight){
+    const mins=Math.max(0,endMin-startMin-lunchThisDay);
+    return{earnedThisDay:(mins/60)*rate*(thisDateDouble?2:1),earnedNextDay:0,hoursThisDay:mins/60,hoursNextDay:0};
+  }
+  const midnight=24*60;
+  const thisMins=Math.max(0,midnight-startMin-lunchThisDay);
+  const nextMins=Math.max(0,(endMin-midnight)-lunchNextDay);
+  return{
+    earnedThisDay:(thisMins/60)*rate*(thisDateDouble?2:1),
+    earnedNextDay:(nextMins/60)*rate*(nextDateDouble?2:1),
+    hoursThisDay:thisMins/60,hoursNextDay:nextMins/60
+  };
+}
+
+// ── MONTH DATA ────────────────────────────────────────────────────────────
+function getMonthData(year,month){
+  let totalHours=0,totalEarned=0,shiftCount=0,correctionDates=[];
+  for(const[key,shift]of Object.entries(state.shifts)){
+    const[y,m,d]=key.split('-').map(Number);
+    const ym=y*100+(m-1),targetYM=year*100+month;
+    const calc=calcShiftEarnings(shift,key);
+    if(ym===targetYM){totalHours+=calc.hoursThisDay;totalEarned+=calc.earnedThisDay;shiftCount++;if(shift.correction)correctionDates.push(key);}
+    if(calc.hoursNextDay>0){
+      const nd=new Date(y,m-1,d);nd.setDate(nd.getDate()+1);
+      if(nd.getFullYear()*100+nd.getMonth()===targetYM){totalHours+=calc.hoursNextDay;totalEarned+=calc.earnedNextDay;}
+    }
+  }
+  return{totalHours,totalEarned,shiftCount,correctionDates,goal:state.settings.goal};
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────
+function renderAll(){renderHeader();renderProgress();renderCalendar();renderUnsignedAlert();}
+function renderHeader(){
+  const now=new Date();
+  document.getElementById('headerSub').textContent=`${now.getDate()} ${MONTHS_UK[now.getMonth()].toLowerCase()} ${now.getFullYear()}`;
+}
+function renderProgress(){
+  const{totalHours,totalEarned,shiftCount,goal}=getMonthData(viewYear,viewMonth);
+  const pct=goal>0?Math.min(100,Math.round((totalEarned/goal)*100)):0;
+  document.getElementById('earnedAmount').textContent=Math.round(totalEarned).toLocaleString('uk')+' ₴';
+  document.getElementById('goalAmount').textContent=Math.round(goal).toLocaleString('uk')+' ₴';
+  document.getElementById('progressBar').style.width=pct+'%';
+  document.getElementById('totalHours').textContent=totalHours.toFixed(1);
+  document.getElementById('totalShifts').textContent=shiftCount;
+  document.getElementById('progressPct').textContent=pct;
+}
+function renderUnsignedAlert(){
+  const{correctionDates}=getMonthData(viewYear,viewMonth);
+  const el=document.getElementById('unsignedAlert');
+  if(correctionDates.length>0){el.classList.add('show');el.textContent=`⚠️ Треба підпис: ${correctionDates.map(d=>{const[y,m,day]=d.split('-');return`${day}.${m}`;}).join(', ')}`;}
+  else el.classList.remove('show');
+}
+function renderCalendar(){
+  document.getElementById('monthLabel').textContent=`${MONTHS_UK[viewMonth]} ${viewYear}`;
+  const container=document.getElementById('calDays');container.innerHTML='';
+  const firstDay=new Date(viewYear,viewMonth,1).getDay();
+  const offset=firstDay===0?6:firstDay-1;
+  const dim=new Date(viewYear,viewMonth+1,0).getDate();
+  const today=new Date();
+  const todayKey=dk(today.getFullYear(),today.getMonth()+1,today.getDate());
+  for(let i=0;i<offset;i++){const e=document.createElement('div');e.className='cal-day empty';container.appendChild(e);}
+  for(let d=1;d<=dim;d++){
+    const key=dk(viewYear,viewMonth+1,d);
+    const shift=state.shifts[key];
+    const isDD=state.doubleDates.includes(key);
+    const el=document.createElement('div');
+    let cls='cal-day';
+    if(key===todayKey)cls+=' today';
+    if(shift)cls+=' has-shift';
+    else if(isDD)cls+=' is-double-day';
+    el.className=cls;
+    const numEl=document.createElement('div');numEl.className='cal-day-num';numEl.textContent=d;el.appendChild(numEl);
+    if(shift){
+      const calc=calcShiftEarnings(shift,key);
+      const total=calc.hoursThisDay+calc.hoursNextDay;
+      const se=document.createElement('div');se.className='cal-day-shift';
+      se.textContent=`${shift.start}\n${shift.end}\n${total.toFixed(1)}г`;el.appendChild(se);
+      const badges=document.createElement('div');badges.className='cal-day-badges';
+      if(isDD)badges.innerHTML+='<span class="badge-double">2×</span>';
+      if(shift.correction)badges.innerHTML+='<span class="badge-correction">!</span>';
+      el.appendChild(badges);
+    }else if(isDD){
+      const lbl=document.createElement('div');lbl.style.cssText='font-size:8px;color:var(--double);margin-top:2px;';lbl.textContent='2×';el.appendChild(lbl);
+    }
+    el.onclick=()=>openModal(key,shift);container.appendChild(el);
+  }
+}
+function renderHistory(){
+  const container=document.getElementById('historyList');container.innerHTML='';
+  const now=new Date();const months=new Set();
+  for(const key of Object.keys(state.shifts)){const[y,m]=key.split('-');months.add(`${y}-${m}`);}
+  for(let i=0;i<4;i++){const d=new Date(now.getFullYear(),now.getMonth()-i,1);months.add(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);}
+  for(const ym of [...months].sort().reverse()){
+    const[y,m]=ym.split('-').map(Number);
+    const data=getMonthData(y,m-1);
+    const pct=data.goal>0?Math.min(100,Math.round((data.totalEarned/data.goal)*100)):0;
+    const item=document.createElement('div');item.className='history-item';
+    item.innerHTML=`<div class="history-month">${MONTHS_UK[m-1]} ${y}</div>
+      <div class="history-stats">
+        <div class="history-stat">зароблено: <span>${Math.round(data.totalEarned).toLocaleString('uk')} ₴</span></div>
+        <div class="history-stat">мета: <span>${Math.round(data.goal).toLocaleString('uk')} ₴</span></div>
+        <div class="history-stat">годин: <span>${data.totalHours.toFixed(1)}</span></div>
+        <div class="history-stat">змін: <span>${data.shiftCount}</span></div>
+      </div>
+      <div class="history-bar-wrap"><div class="history-bar-fill" style="width:${pct}%"></div></div>
+      <div style="font-size:10px;color:var(--text2);margin-top:6px;text-align:right">${pct}% мети</div>`;
+    container.appendChild(item);
+  }
+}
+
+// ── MODAL ─────────────────────────────────────────────────────────────────
+function openModal(key,shift){
+  editingDate=key;
+  const[y,m,d]=key.split('-');
+  document.getElementById('modalTitle').textContent=`${d}.${m}.${y} — зміна`;
+  if(shift){
+    document.getElementById('mStart').value=shift.start||'22:45';
+    document.getElementById('mEnd').value=shift.end||'07:15';
+    document.getElementById('mLunchStart').value=shift.lunchStart||'';
+    document.getElementById('mCorrection').checked=shift.correction||false;
+    document.getElementById('btnDelete').style.display='block';
+  }else{
+    document.getElementById('mStart').value='22:45';
+    document.getElementById('mEnd').value='07:15';
+    document.getElementById('mLunchStart').value='';
+    document.getElementById('mCorrection').checked=false;
+    document.getElementById('btnDelete').style.display='none';
+  }
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal(){document.getElementById('modalOverlay').classList.remove('open');editingDate=null;}
+function closeModalOutside(e){if(e.target===document.getElementById('modalOverlay'))closeModal();}
+function saveShift(){
+  if(!editingDate)return;
+  state.shifts[editingDate]={
+    start:document.getElementById('mStart').value,
+    end:document.getElementById('mEnd').value,
+    lunchStart:document.getElementById('mLunchStart').value||null,
+    correction:document.getElementById('mCorrection').checked
+  };
+  saveAndSync();renderAll();closeModal();
+}
+function deleteShift(){if(!editingDate)return;delete state.shifts[editingDate];saveAndSync();renderAll();closeModal();}
+
+// ── NAV ───────────────────────────────────────────────────────────────────
+function prevMonth(){viewMonth--;if(viewMonth<0){viewMonth=11;viewYear--;}renderAll();}
+function nextMonth(){viewMonth++;if(viewMonth>11){viewMonth=0;viewYear++;}renderAll();}
+function switchTab(tab,btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page'+tab.charAt(0).toUpperCase()+tab.slice(1)).classList.add('active');
+  btn.classList.add('active');
+  if(tab==='history')renderHistory();
+}
+function dk(y,m,d){return`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+
+init();
+</script>
+</body>
+</html>
