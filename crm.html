@@ -135,9 +135,10 @@ input, select { width: 100%; padding: 12px; border: 1px solid var(--border); bor
 <div id="preview-modal" class="modal-overlay hidden">
     <div class="modal-win">
         <div id="pre-content"></div>
-        <div style="display:flex; gap:10px; margin-top:20px;">
+        <div style="display:flex; gap:8px; margin-top:16px;">
             <button class="btn btn-ghost" style="flex:1" onclick="closePreview()">Назад</button>
-            <button class="btn btn-primary" style="flex:2" id="btn-pre-action">Зберегти та PDF</button>
+            <button class="btn btn-primary" style="flex:1;background:#34c759" id="btn-pre-save">Зберегти</button>
+            <button class="btn btn-primary" style="flex:1" id="btn-pre-pdf">⬇️ PDF</button>
         </div>
     </div>
 </div>
@@ -320,59 +321,112 @@ function updateInvoiceTotal() {
 
 function removeInvItem(id) { invoiceItems = invoiceItems.filter(x => x.tempId != id); renderInvoice(); }
 
+// Зберігаємо поточні дані накладної для превью
+let currentInvoiceData = null;
+
 function openPreview() {
     const num = document.getElementById('inv-num').value || '1';
     const date = document.getElementById('inv-date').value.split('-').reverse().join('.');
     const client = document.getElementById('inv-client').value || '—';
     const total = invoiceItems.reduce((s, x) => s + x.price * x.qty, 0);
-    let html = `<h3>Накладна №${num}</h3><p>Клієнт: ${client}</p><table style="width:100%; font-size:11px">`;
-    invoiceItems.forEach(it => { html += `<tr><td style="border-bottom:1px solid #ddd; padding:5px">${it.name}</td><td style="text-align:center">${it.qty}</td><td style="text-align:right">${(it.qty*it.price).toFixed(0)}</td></tr>`; });
-    html += `</table><h3 style="text-align:right">РАЗОМ: ${total.toFixed(2)} ₴</h3>`;
-    document.getElementById('pre-content').innerHTML = html;
-    // Прибираємо старий обробник і ставимо новий — виключає подвійний виклик
-    const btn = document.getElementById('btn-pre-action');
-    btn.replaceWith(btn.cloneNode(true));
-    document.getElementById('btn-pre-action').onclick = () => saveAndDownload(num, date, client, total);
-    document.getElementById('preview-modal').classList.remove('hidden');
-}
 
-function saveAndDownload(num, date, client, total) {
-    if(pdfGenerating) return; // захист від подвійного кліку
-    pdfGenerating = true;
-    const btn = document.getElementById('btn-pre-action');
-    btn.disabled = true;
-    btn.textContent = 'Генерація...';
-
-    const data = {
-        num, date, client, items: invoiceItems, total,
+    // Зберігаємо дані
+    currentInvoiceData = {
+        num, date, client, total,
+        items: invoiceItems.map(x => ({...x})),
         id: editingInvoiceIdx !== null ? invoiceHistory[editingInvoiceIdx].id : Date.now().toString()
     };
 
-    db.ref('history/' + data.id).set(data);
+    // Превью HTML — фіксована верстка без накладання
+    let rows = '';
+    currentInvoiceData.items.forEach(it => {
+        rows += `<tr>
+            <td style="padding:6px 4px;border-bottom:1px solid #eee;text-align:left">${it.name}</td>
+            <td style="padding:6px 4px;border-bottom:1px solid #eee;text-align:center;white-space:nowrap">${it.qty} ${it.unit||'шт'}</td>
+            <td style="padding:6px 4px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap">${(it.qty*it.price).toFixed(0)} ₴</td>
+        </tr>`;
+    });
+
+    document.getElementById('pre-content').innerHTML = `
+        <div style="border-bottom:2px solid #1c1c1e;padding-bottom:10px;margin-bottom:12px">
+            <div style="font-size:16px;font-weight:800;text-align:center">ВИДАТКОВА НАКЛАДНА</div>
+            <div style="font-size:12px;text-align:center;color:#666;margin-top:4px">№ ${num} від ${date}</div>
+        </div>
+        <div style="font-size:13px;margin-bottom:12px"><b>Отримувач:</b> ${client}</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead>
+                <tr style="background:#f4f4f7">
+                    <th style="padding:6px 4px;text-align:left;font-size:10px;color:#666">Назва</th>
+                    <th style="padding:6px 4px;text-align:center;font-size:10px;color:#666;width:60px">К-сть</th>
+                    <th style="padding:6px 4px;text-align:right;font-size:10px;color:#666;width:70px">Сума</th>
+                </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+        </table>
+        <div style="background:#1c1c1e;color:#fff;padding:12px;border-radius:8px;margin-top:12px;display:flex;justify-content:space-between;align-items:center">
+            <b>РАЗОМ:</b>
+            <b style="font-size:16px">${total.toFixed(2)} ₴</b>
+        </div>`;
+
+    // Кнопки: Назад | Зберегти в журнал | Скачати PDF
+    document.getElementById('preview-modal').classList.remove('hidden');
+    document.getElementById('btn-pre-save').onclick = () => saveInvoice();
+    document.getElementById('btn-pre-pdf').onclick = () => downloadPDF();
+}
+
+function saveInvoice() {
+    if(!currentInvoiceData) return;
+    db.ref('history/' + currentInvoiceData.id).set(currentInvoiceData);
+    if(editingInvoiceIdx === null) document.getElementById('inv-num').value = parseInt(currentInvoiceData.num) + 1;
+    resetInvoicePage();
+    closePreview();
+    showPage('history');
+}
+
+function downloadPDF() {
+    if(!currentInvoiceData || pdfGenerating) return;
+    pdfGenerating = true;
+    const btn = document.getElementById('btn-pre-pdf');
+    btn.disabled = true;
+    btn.textContent = 'Генерація...';
 
     const dd = {
         content: [
             {text: 'ВИДАТКОВА НАКЛАДНА', fontSize: 16, bold: true, alignment: 'center'},
-            {text: `№ ${data.num} від ${data.date}`, alignment: 'center', margin: [0, 5, 0, 15]},
-            {text: `ОТРИМУВАЧ: ${data.client}`, margin: [0, 0, 0, 15]},
+            {text: `№ ${currentInvoiceData.num} від ${currentInvoiceData.date}`, alignment: 'center', margin: [0, 5, 0, 15]},
+            {text: `Отримувач: ${currentInvoiceData.client}`, margin: [0, 0, 0, 15]},
             {
                 table: {
-                    headerRows: 1, widths: [20, 45, '*', 45, 55, 65],
+                    headerRows: 1,
+                    widths: [20, '*', 60, 55, 65],
                     body: [
-                        [{text:'№',bold:true}, {text:'Арт.',bold:true}, {text:'Назва',bold:true}, {text:'К-сть',bold:true}, {text:'Ціна',bold:true}, {text:'Сума',bold:true}],
-                        ...data.items.map((it, i) => [i+1, it.sku || '—', it.name, it.qty + ' ' + (it.unit||'шт'), it.price.toFixed(2), (it.qty*it.price).toFixed(2)])
+                        [{text:'№',bold:true,fillColor:'#f4f4f7'}, {text:'Назва',bold:true,fillColor:'#f4f4f7'}, {text:'К-сть',bold:true,fillColor:'#f4f4f7'}, {text:'Ціна',bold:true,fillColor:'#f4f4f7'}, {text:'Сума',bold:true,fillColor:'#f4f4f7'}],
+                        ...currentInvoiceData.items.map((it, i) => [
+                            i+1,
+                            it.name,
+                            it.qty + ' ' + (it.unit||'шт'),
+                            it.price.toFixed(2),
+                            (it.qty*it.price).toFixed(2)
+                        ])
                     ]
-                }
+                },
+                layout: 'lightHorizontalLines'
             },
-            {text: `\nРАЗОМ: ${data.total.toFixed(2)} грн`, fontSize: 14, bold: true, alignment: 'right'}
-        ]
+            {text: `\nРАЗОМ: ${currentInvoiceData.total.toFixed(2)} грн`, fontSize: 14, bold: true, alignment: 'right'}
+        ],
+        defaultStyle: { fontSize: 11 }
     };
 
-    pdfMake.createPdf(dd).download(`Nakl_${data.num}.pdf`, () => {
+    // Зберігаємо в журнал і качаємо PDF
+    db.ref('history/' + currentInvoiceData.id).set(currentInvoiceData);
+
+    pdfMake.createPdf(dd).download(`Nakl_${currentInvoiceData.num}.pdf`, () => {
         pdfGenerating = false;
+        btn.disabled = false;
+        btn.textContent = '⬇️ PDF';
     });
 
-    if(editingInvoiceIdx === null) document.getElementById('inv-num').value = parseInt(num) + 1;
+    if(editingInvoiceIdx === null) document.getElementById('inv-num').value = parseInt(currentInvoiceData.num) + 1;
     resetInvoicePage();
     closePreview();
     showPage('history');
