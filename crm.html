@@ -435,7 +435,7 @@ function openPDF(){
   const d=currentInvoiceData.date.replace(/\./g,'');
   const fileName=`N${currentInvoiceData.num}_${d}.pdf`;
 
-  pdfMake.createPdf(dd).open();
+  pdfMake.createPdf(dd).download(`Nakl${currentInvoiceData.num}.pdf`);
 
   resetInvoicePage();closePreview();
   showPage('history',document.querySelectorAll('.nav-item')[2]);
