@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>CRM Cloud v6.0 Pro</title>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+<style>
+:root {
+    --bg: #f4f4f7; --card: #ffffff; --primary: #007aff; --text: #1c1c1e;
+    --text-secondary: #8e8e93; --border: #d1d1d6; --radius: 12px; --danger: #ff3b30;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: var(--bg); color: var(--text); margin: 0; padding-bottom: 90px; font-size: 11px;
+}
+.header { background: var(--card); padding: 40px 20px 10px; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; display: flex; justify-content: space-between; align-items: center; }
+.header h1 { font-size: 18px; font-weight: 800; margin: 0; }
+.sync-badge { font-size: 9px; padding: 4px 8px; border-radius: 10px; font-weight: bold; background: #e2f9e1; color: #28a745; }
+
+.nav-bar { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-top: 1px solid var(--border); display: flex; padding: 10px 0 25px; z-index: 1000; }
+.nav-item { text-align: center; color: var(--text-secondary); font-size: 10px; font-weight: bold; flex: 1; border: none; background: none; }
+.nav-item.active { color: var(--primary); }
+
+.page { display: none; padding: 10px; }
+.page.active { display: block; }
+.card { background: var(--card); border-radius: var(--radius); padding: 12px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+
+input, select { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; background: #f9f9f9; margin-bottom: 8px; outline: none; }
+.btn { padding: 12px; border-radius: 10px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; width: 100%; }
+.btn-primary { background: var(--primary); color: white; }
+.btn-ghost { background: #eee; color: var(--text); }
+.btn-danger { background: var(--danger); color: white; }
+
+.cat-header { 
+    background: #e5e5ea; padding: 10px 12px; border-radius: 6px; font-size: 12px; font-weight: 800; 
+    margin: 15px 0 5px; color: #333; display: flex; justify-content: space-between; align-items: center; cursor: pointer;
+}
+.cat-header::after { content: '▼'; font-size: 10px; color: #8e8e93; transition: transform 0.2s; }
+.cat-header.collapsed::after { content: '▶'; }
+.cat-list.collapsed { display: none; }
+
+.prod-row { display: flex; justify-content: space-between; align-items: center; padding: 10px; margin-bottom: 8px; }
+.drag-handle { color: var(--border); margin-right: 10px; font-size: 18px; padding: 5px; cursor: grab; }
+.drag-handle:active { cursor: grabbing; }
+
+.search-results { background: #fff; border: 1px solid var(--border); border-radius: 10px; max-height: 250px; overflow-y: auto; position: absolute; width: calc(100% - 44px); z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+.search-item { padding: 12px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; }
+
+.invoice-table { width: 100%; border-collapse: collapse; }
+.invoice-table th { font-size: 9px; color: #555; background: #e8e8ed; padding: 5px; }
+.invoice-table td { padding: 8px 2px; border-bottom: 1px solid #f0f0f0; text-align: center; }
+.qty-input { width: 60px; padding: 8px !important; text-align: center; border: 1px solid var(--primary); font-weight: bold; margin: 0 !important; font-size: 14px; }
+
+.sortable-ghost { opacity: 0.3; background: var(--primary) !important; }
+
+.modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.6); display:flex; align-items:center; justify-content:center; z-index:2000; padding: 15px; backdrop-filter: blur(4px); }
+.modal-win { background: #fff; border-radius: var(--radius); width: 100%; max-width: 460px; padding: 20px; max-height: 90vh; overflow-y: auto; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1 id="page-title">Склад</h1>
+    <span class="sync-badge">Хмара UA</span>
+</div>
+
+<div id="page-goods" class="page active">
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+            <b>Управління складом</b>
+            <button class="btn btn-ghost" style="width:auto; padding:5px 10px" onclick="openCatManager()">Групи ⚙️</button>
+        </div>
+        <input type="hidden" id="edit-id">
+        <select id="g-cat"></select>
+        <input type="text" id="g-name" placeholder="Назва товару">
+        <div style="display:flex; gap:8px">
+            <input type="text" id="g-sku" placeholder="Арт.">
+            <input type="number" id="g-price" placeholder="Ціна">
+            <input type="text" id="g-unit" value="шт" style="width:60px">
+        </div>
+        <button class="btn btn-primary" onclick="saveProduct()">Зберегти в Облако</button>
+        <button class="btn btn-ghost hidden" id="btn-cancel-edit" onclick="cancelEdit()" style="margin-top:8px">Скасувати</button>
+    </div>
+    <div id="goods-container"></div>
+</div>
+
+<div id="page-invoice" class="page">
+    <div id="edit-mode-indicator" class="hidden" style="background: #ff9500; color: white; padding: 5px; text-align: center; border-radius: 8px; margin-bottom: 10px;">РЕДАГУВАННЯ ЖУРНАЛУ</div>
+    <div class="card">
+        <div style="display:grid; grid-template-columns: 55px 1fr 1fr; gap:5px;">
+            <div><small>№</small><input type="text" id="inv-num"></div>
+            <div><small>Дата</small><input type="date" id="inv-date"></div>
+            <div><small>Клієнт</small><input type="text" id="inv-client" placeholder="ПІБ"></div>
+        </div>
+        <input type="text" id="inv-search" placeholder="🔍 Пошук..." oninput="searchInv(this.value)">
+        <div id="inv-sres" class="search-results hidden"></div>
+    </div>
+    <div class="card" style="padding: 5px;">
+        <table class="invoice-table">
+            <thead>
+                <tr><th style="width:30px"></th><th style="text-align:left">Назва</th><th style="width:70px">К-сть</th><th style="width:60px">Сума</th><th style="width:30px"></th></tr>
+            </thead>
+            <tbody id="inv-items"></tbody>
+        </table>
+        <div id="inv-tot-wrap" class="hidden" style="margin-top:10px">
+            <div style="background: #1c1c1e; color: #fff; padding: 15px; border-radius: 10px; display: flex; justify-content: space-between; align-items:center;">
+                <b>РАЗОМ:</b> <span id="inv-total-val" style="font-size:16px; font-weight:bold;">0.00</span>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:10px">
+                <button class="btn btn-ghost hidden" id="btn-cancel-inv-edit" onclick="resetInvoicePage()">Скасувати</button>
+                <button class="btn btn-primary" onclick="openPreview()" style="flex:2">PDF</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="page-history" class="page"><div id="hist-list"></div></div>
+
+<div id="category-modal" class="modal-overlay hidden">
+    <div class="modal-win">
+        <b>Групи товарів</b>
+        <div id="cat-manager-list" style="margin: 15px 0;"></div>
+        <div style="display:flex; gap:5px;"><input type="text" id="new-cat-name" placeholder="Нова"><button class="btn btn-primary" style="width:50px" onclick="addCategory()">+</button></div>
+        <button class="btn btn-ghost" onclick="closeCatManager()" style="margin-top:15px">Закрити</button>
+    </div>
+</div>
+
+<div id="preview-modal" class="modal-overlay hidden">
+    <div class="modal-win">
+        <div id="pre-content"></div>
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button class="btn btn-ghost" style="flex:1" onclick="closePreview()">Назад</button>
+            <button class="btn btn-primary" style="flex:2" id="btn-pre-action">Зберегти та PDF</button>
+        </div>
+    </div>
+</div>
+
+<div class="nav-bar">
+    <button class="nav-item active" onclick="showPage('goods')">СКЛАД</button>
+    <button class="nav-item" onclick="showPage('invoice')">НАКЛАДНА</button>
+    <button class="nav-item" onclick="showPage('history')">ЖУРНАЛ</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyBqEFr1Zl-uM-eb58tB_tMgYIgISsfKoiM",
+  authDomain: "crmkyrylin.firebaseapp.com",
+  databaseURL: "https://crmkyrylin-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "crmkyrylin",
+  storageBucket: "crmkyrylin.firebasestorage.app",
+  messagingSenderId: "855766374550",
+  appId: "1:855766374550:web:337edb41aa7ce2ab274ab7"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let products = [];
+let categories = ["Тенти", "Бар'єри", "Безпека", "Без категорії"];
+let invoiceItems = [];
+let invoiceHistory = [];
+let editingInvoiceIdx = null;
+let collapsedCategories = {};
+let pdfGenerating = false; // захист від подвійного виклику
+
+db.ref('products').on('value', snap => {
+    const data = snap.val();
+    products = data ? Object.values(data).sort((a,b) => (a.sortOrder || 0) - (b.sortOrder || 0)) : [];
+    renderGoods();
+});
+db.ref('categories').on('value', snap => {
+    if(snap.val()) categories = snap.val();
+    renderGoods();
+});
+db.ref('history').on('value', snap => {
+    invoiceHistory = snap.val() ? Object.values(snap.val()).reverse() : [];
+    renderHistory();
+});
+
+function renderGoods() {
+    const container = document.getElementById('goods-container');
+    container.innerHTML = '';
+    document.getElementById('g-cat').innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('');
+    categories.forEach((cat, catIdx) => {
+        const catProds = products.filter(p => (p.cat || 'Без категорії') === cat);
+        const header = document.createElement('div');
+        header.className = `cat-header ${collapsedCategories[cat] ? 'collapsed' : ''}`;
+        header.innerHTML = `<span>${cat} (${catProds.length})</span>`;
+        const catList = document.createElement('div');
+        catList.className = `cat-list ${collapsedCategories[cat] ? 'collapsed' : ''}`;
+        catList.id = `cat-list-${catIdx}`;
+        header.onclick = () => {
+            const isCollapsed = catList.classList.toggle('collapsed');
+            header.classList.toggle('collapsed', isCollapsed);
+            collapsedCategories[cat] = isCollapsed;
+        };
+        catProds.forEach(p => {
+            const item = document.createElement('div');
+            item.className = 'card prod-row';
+            item.dataset.id = p.id;
+            item.innerHTML = `
+                <div style="display:flex; align-items:center; flex:1">
+                    <span class="drag-handle">⠿</span>
+                    <div><b>${p.name}</b><br><small>${p.price} ₴ | Арт: ${p.sku || '—'}</small></div>
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <button class="btn" style="width:30px; padding:5px; background: #e5e5ea; color: black;" onclick="event.stopPropagation(); editProd('${p.id}')">✏️</button>
+                    <button class="btn btn-danger" style="width:30px; padding:5px" onclick="event.stopPropagation(); deleteProduct('${p.id}')">✕</button>
+                </div>`;
+            catList.appendChild(item);
+        });
+        container.appendChild(header);
+        container.appendChild(catList);
+        new Sortable(catList, { handle: '.drag-handle', animation: 150, ghostClass: 'sortable-ghost', onEnd: saveOrder });
+    });
+}
+
+function saveOrder() {
+    const allItems = document.querySelectorAll('#goods-container .prod-row');
+    allItems.forEach((el, index) => { db.ref('products/' + el.dataset.id).update({ sortOrder: index }); });
+}
+
+function saveProduct() {
+    const id = document.getElementById('edit-id').value || Date.now().toString();
+    const name = document.getElementById('g-name').value.trim();
+    const price = parseFloat(document.getElementById('g-price').value);
+    if(!name || isNaN(price)) return;
+    const existing = products.find(x => x.id === id);
+    const order = existing ? (existing.sortOrder || 0) : products.length;
+    db.ref('products/' + id).update({ id, name, price, unit: document.getElementById('g-unit').value, sku: document.getElementById('g-sku').value, cat: document.getElementById('g-cat').value, sortOrder: order });
+    cancelEdit();
+}
+
+function deleteProduct(id) { if(confirm("Видалити?")) db.ref('products/' + id).remove(); }
+function editProd(id) {
+    const p = products.find(x => x.id == id);
+    document.getElementById('edit-id').value = p.id;
+    document.getElementById('g-name').value = p.name;
+    document.getElementById('g-price').value = p.price;
+    document.getElementById('g-sku').value = p.sku || '';
+    document.getElementById('g-cat').value = p.cat;
+    document.getElementById('btn-cancel-edit').classList.remove('hidden');
+    window.scrollTo(0,0);
+}
+function cancelEdit() {
+    document.getElementById('edit-id').value = ''; document.getElementById('g-name').value = '';
+    document.getElementById('g-price').value = ''; document.getElementById('btn-cancel-edit').classList.add('hidden');
+}
+
+function openCatManager() {
+    const list = document.getElementById('cat-manager-list');
+    list.innerHTML = categories.map(c => `<div style="display:flex; justify-content:space-between; margin-bottom:8px"><span>${c}</span><button class="btn btn-danger" style="width:30px; padding:2px" onclick="deleteCat('${c}')">✕</button></div>`).join('');
+    document.getElementById('category-modal').classList.remove('hidden');
+}
+function addCategory() {
+    const n = document.getElementById('new-cat-name').value.trim();
+    if(n && !categories.includes(n)) { categories.push(n); db.ref('categories').set(categories); document.getElementById('new-cat-name').value = ''; openCatManager(); }
+}
+function deleteCat(c) { if(confirm("Видалити групу?")) { categories = categories.filter(x => x !== c); db.ref('categories').set(categories); openCatManager(); } }
+function closeCatManager() { document.getElementById('category-modal').classList.add('hidden'); }
+
+function searchInv(val) {
+    const res = document.getElementById('inv-sres');
+    if(!val) { res.classList.add('hidden'); return; }
+    const filtered = products.filter(p => (p.name.toLowerCase().includes(val.toLowerCase()) || (p.sku && p.sku.toLowerCase().includes(val.toLowerCase()))));
+    res.innerHTML = filtered.map(p => `<div class="search-item" onclick="addInvItem('${p.id}')"><span>${p.name}</span><b>${p.price} ₴</b></div>`).join('');
+    res.classList.remove('hidden');
+}
+
+function addInvItem(id) {
+    const p = products.find(x => x.id == id);
+    invoiceItems.push({...p, tempId: Date.now(), qty: 1});
+    document.getElementById('inv-search').value = '';
+    document.getElementById('inv-sres').classList.add('hidden');
+    renderInvoice();
+}
+
+function renderInvoice() {
+    const body = document.getElementById('inv-items');
+    body.innerHTML = invoiceItems.map((it, i) => `
+        <tr data-tempid="${it.tempId}">
+            <td class="drag-handle">⠿</td>
+            <td style="text-align:left"><b>${it.name}</b></td>
+            <td><input type="number" class="qty-input" value="${it.qty}" oninput="updateQty(${it.tempId}, this.value)"></td>
+            <td style="font-weight:bold" class="row-total">${(it.price * it.qty).toFixed(0)}</td>
+            <td onclick="removeInvItem(${it.tempId})" style="color:red; font-size:16px">✕</td>
+        </tr>`).join('');
+    updateInvoiceTotal();
+    new Sortable(body, {
+        handle: '.drag-handle', animation: 150,
+        onEnd: (evt) => { const moved = invoiceItems.splice(evt.oldIndex, 1)[0]; invoiceItems.splice(evt.newIndex, 0, moved); }
+    });
+}
+
+function updateQty(tempId, val) {
+    const it = invoiceItems.find(x => x.tempId == tempId);
+    if(it) {
+        it.qty = parseFloat(val) || 0;
+        const row = document.querySelector(`tr[data-tempid="${tempId}"]`);
+        if(row) row.querySelector('.row-total').innerText = (it.price * it.qty).toFixed(0);
+        updateInvoiceTotal();
+    }
+}
+
+function updateInvoiceTotal() {
+    const total = invoiceItems.reduce((s, x) => s + (x.price * x.qty), 0);
+    document.getElementById('inv-total-val').innerText = total.toFixed(2);
+    document.getElementById('inv-tot-wrap').classList.toggle('hidden', invoiceItems.length === 0);
+}
+
+function removeInvItem(id) { invoiceItems = invoiceItems.filter(x => x.tempId != id); renderInvoice(); }
+
+function openPreview() {
+    const num = document.getElementById('inv-num').value || '1';
+    const date = document.getElementById('inv-date').value.split('-').reverse().join('.');
+    const client = document.getElementById('inv-client').value || '—';
+    const total = invoiceItems.reduce((s, x) => s + x.price * x.qty, 0);
+    let html = `<h3>Накладна №${num}</h3><p>Клієнт: ${client}</p><table style="width:100%; font-size:11px">`;
+    invoiceItems.forEach(it => { html += `<tr><td style="border-bottom:1px solid #ddd; padding:5px">${it.name}</td><td style="text-align:center">${it.qty}</td><td style="text-align:right">${(it.qty*it.price).toFixed(0)}</td></tr>`; });
+    html += `</table><h3 style="text-align:right">РАЗОМ: ${total.toFixed(2)} ₴</h3>`;
+    document.getElementById('pre-content').innerHTML = html;
+    // Прибираємо старий обробник і ставимо новий — виключає подвійний виклик
+    const btn = document.getElementById('btn-pre-action');
+    btn.replaceWith(btn.cloneNode(true));
+    document.getElementById('btn-pre-action').onclick = () => saveAndDownload(num, date, client, total);
+    document.getElementById('preview-modal').classList.remove('hidden');
+}
+
+function saveAndDownload(num, date, client, total) {
+    if(pdfGenerating) return; // захист від подвійного кліку
+    pdfGenerating = true;
+    const btn = document.getElementById('btn-pre-action');
+    btn.disabled = true;
+    btn.textContent = 'Генерація...';
+
+    const data = {
+        num, date, client, items: invoiceItems, total,
+        id: editingInvoiceIdx !== null ? invoiceHistory[editingInvoiceIdx].id : Date.now().toString()
+    };
+
+    db.ref('history/' + data.id).set(data);
+
+    const dd = {
+        content: [
+            {text: 'ВИДАТКОВА НАКЛАДНА', fontSize: 16, bold: true, alignment: 'center'},
+            {text: `№ ${data.num} від ${data.date}`, alignment: 'center', margin: [0, 5, 0, 15]},
+            {text: `ОТРИМУВАЧ: ${data.client}`, margin: [0, 0, 0, 15]},
+            {
+                table: {
+                    headerRows: 1, widths: [20, 45, '*', 45, 55, 65],
+                    body: [
+                        [{text:'№',bold:true}, {text:'Арт.',bold:true}, {text:'Назва',bold:true}, {text:'К-сть',bold:true}, {text:'Ціна',bold:true}, {text:'Сума',bold:true}],
+                        ...data.items.map((it, i) => [i+1, it.sku || '—', it.name, it.qty + ' ' + (it.unit||'шт'), it.price.toFixed(2), (it.qty*it.price).toFixed(2)])
+                    ]
+                }
+            },
+            {text: `\nРАЗОМ: ${data.total.toFixed(2)} грн`, fontSize: 14, bold: true, alignment: 'right'}
+        ]
+    };
+
+    pdfMake.createPdf(dd).download(`Nakl_${data.num}.pdf`, () => {
+        pdfGenerating = false;
+    });
+
+    if(editingInvoiceIdx === null) document.getElementById('inv-num').value = parseInt(num) + 1;
+    resetInvoicePage();
+    closePreview();
+    showPage('history');
+}
+
+function renderHistory() {
+    const list = document.getElementById('hist-list');
+    list.innerHTML = invoiceHistory.map((h, i) => `
+        <div class="card" onclick="editHistory(${i})">
+            <div style="display:flex; justify-content:space-between"><b>№ ${h.num} — ${h.client}</b> <b>${h.total.toFixed(0)} ₴</b></div>
+            <small style="color:#999">${h.date} | ${h.items.length} поз.</small>
+        </div>`).join('');
+}
+
+function editHistory(idx) {
+    const h = invoiceHistory[idx];
+    editingInvoiceIdx = idx;
+    document.getElementById('inv-num').value = h.num;
+    document.getElementById('inv-client').value = h.client;
+    invoiceItems = h.items.map(item => ({...item, tempId: Math.random()}));
+    document.getElementById('edit-mode-indicator').classList.remove('hidden');
+    document.getElementById('btn-cancel-inv-edit').classList.remove('hidden');
+    showPage('invoice');
+    renderInvoice();
+}
+
+function resetInvoicePage() {
+    editingInvoiceIdx = null; invoiceItems = [];
+    document.getElementById('inv-client').value = '';
+    document.getElementById('edit-mode-indicator').classList.add('hidden');
+    document.getElementById('btn-cancel-inv-edit').classList.add('hidden');
+    renderInvoice();
+}
+
+function showPage(p) {
+    document.querySelectorAll('.page').forEach(e => e.classList.remove('active'));
+    document.getElementById('page-' + p).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
+    document.querySelectorAll('.nav-item')[{goods:0, invoice:1, history:2}[p]].classList.add('active');
+    document.getElementById('page-title').innerText = {goods:'Склад', invoice:'Накладна', history:'Журнал'}[p];
+}
+
+function closePreview() { document.getElementById('preview-modal').classList.add('hidden'); }
+
+document.getElementById('inv-date').value = new Date().toISOString().split('T')[0];
+document.getElementById('inv-num').value = '1';
+</script>
+</body>
+</html>
