@@ -472,8 +472,14 @@ function editHistory(id){
 function histPDF(id){
   const h=invoiceHistory.find(x=>x.id==id);
   if(!h)return;
-  currentInvoiceData=h;
-  openPDF();
+  // Заповнюємо поля накладної з журналу і відкриваємо превью
+  editingInvoiceId=h.id;
+  invoiceItems=h.items.map(it=>({...it,tempId:Math.random()}));
+  const dateFormatted=h.date.split('.').reverse().join('-');
+  document.getElementById('inv-num').value=h.num;
+  document.getElementById('inv-date').value=dateFormatted;
+  document.getElementById('inv-client').value=h.client;
+  openPreview();
 }
 
 function resetInvoicePage(){
