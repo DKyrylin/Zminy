@@ -465,14 +465,23 @@ function editHistory(id){
 function histPDF(id){
   const h=invoiceHistory.find(x=>x.id==id);
   if(!h)return;
-  // Заповнюємо поля накладної з журналу і відкриваємо превью
   editingInvoiceId=h.id;
   invoiceItems=h.items.map(it=>({...it,tempId:Math.random()}));
   const dateFormatted=h.date.split('.').reverse().join('-');
   document.getElementById('inv-num').value=h.num;
   document.getElementById('inv-date').value=dateFormatted;
   document.getElementById('inv-client').value=h.client;
-  openPreview();
+  // Відкриваємо превью без переходу на сторінку накладної
+  const total=h.items.reduce((s,x)=>s+x.price*x.qty,0);
+  currentInvoiceData={num:h.num,date:h.date,client:h.client,total,items:h.items.map(x=>({...x})),id:h.id};
+  let rows='';
+  currentInvoiceData.items.forEach(it=>{rows+=`<tr><td style="padding:8px 4px;border-bottom:1px solid #eee;text-align:left;font-size:13px">${it.name}${it.sku?'<br><span style="font-size:10px;color:var(--text2)">'+it.sku+'</span>':''}</td><td style="padding:8px 4px;border-bottom:1px solid #eee;text-align:center;font-size:13px;white-space:nowrap">${it.qty} ${it.unit||'шт'}</td><td style="padding:8px 4px;border-bottom:1px solid #eee;text-align:right;font-size:13px;font-weight:700;white-space:nowrap">${(it.qty*it.price).toFixed(0)} ₴</td></tr>`;});
+  document.getElementById('pre-content').innerHTML=`<div style="border-bottom:2px solid #1c1c1e;padding-bottom:12px;margin-bottom:14px;text-align:center"><div style="font-size:17px;font-weight:800">ВИДАТКОВА НАКЛАДНА</div><div style="font-size:13px;color:var(--text2);margin-top:4px">№ ${h.num} · ${h.date}</div></div><div style="font-size:14px;margin-bottom:14px;padding:10px 12px;background:#f4f4f7;border-radius:10px"><span style="color:var(--text2);font-size:12px">Отримувач</span><br><b>${h.client}</b></div><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f4f4f7"><th style="padding:7px 4px;text-align:left;font-size:11px;color:var(--text2)">Назва</th><th style="padding:7px 4px;text-align:center;font-size:11px;color:var(--text2);width:64px">К-сть</th><th style="padding:7px 4px;text-align:right;font-size:11px;color:var(--text2);width:72px">Сума</th></tr></thead><tbody>${rows}</tbody></table><div style="background:#1c1c1e;color:#fff;padding:14px 16px;border-radius:12px;margin-top:14px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:14px;font-weight:600">РАЗОМ</span><span style="font-size:20px;font-weight:800">${total.toFixed(2)} ₴</span></div>`;
+  document.getElementById('preview-modal').classList.remove('hidden');
+}
+
+function deleteHistory(id){
+  if(confirm('Видалити накладну?')) db.ref('history/'+id).remove();
 }
 
 function resetInvoicePage(){
@@ -556,8 +565,11 @@ function showToast(msg){
   setTimeout(()=>t.classList.remove('show'),2500);
 }
 
-document.getElementById('inv-date').value=new Date().toISOString().split('T')[0];
-document.getElementById('inv-num').value='1';
+const _now=new Date();
+document.getElementById('inv-date').value=_now.toISOString().split('T')[0];
+const _dd=String(_now.getDate()).padStart(2,'0');
+const _mm=String(_now.getMonth()+1).padStart(2,'0');
+document.getElementById('inv-num').value=_dd+_mm;
 </script>
 </body>
 </html>
