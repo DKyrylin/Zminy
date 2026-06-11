@@ -435,7 +435,14 @@ function openPDF(){
   const d=currentInvoiceData.date.replace(/\./g,'');
   const fileName=`N${currentInvoiceData.num}_${d}.pdf`;
 
-  pdfMake.createPdf(dd).download(`Nakl${currentInvoiceData.num}.pdf`);
+  pdfMake.createPdf(dd).getBase64(base64=>{
+    const byteChars=atob(base64);
+    const byteArr=new Uint8Array(byteChars.length);
+    for(let i=0;i<byteChars.length;i++)byteArr[i]=byteChars.charCodeAt(i);
+    const blob=new Blob([byteArr],{type:'application/pdf'});
+    const url=URL.createObjectURL(blob);
+    window.location.href=url;
+  });
 
   resetInvoicePage();closePreview();
   showPage('history',document.querySelectorAll('.nav-item')[2]);
@@ -446,7 +453,7 @@ function openPDF(){
 function renderHistory(){
   const list=document.getElementById('hist-list');
   if(!invoiceHistory.length){list.innerHTML='<div style="text-align:center;color:var(--text2);padding:40px;font-size:14px">Накладних поки немає</div>';return;}
-  list.innerHTML=invoiceHistory.map(h=>`<div class="hist-card"><div class="hist-top"><span class="hist-num">№${h.num} — ${h.client}</span><span class="hist-sum">${parseFloat(h.total).toFixed(0)} ₴</span></div><div class="hist-sub">${h.date} · ${h.items.length} позицій</div><div class="hist-actions"><button class="btn btn-ghost btn-sm" onclick="editHistory('${h.id}')" style="flex:1">✏️ Редагувати</button><button class="btn btn-primary btn-sm" onclick="histPDF('${h.id}')" style="flex:1">PDF ↗</button></div></div>`).join('');
+  list.innerHTML=invoiceHistory.map(h=>`<div class="hist-card"><div class="hist-top"><span class="hist-num">№${h.num} — ${h.client}</span><span class="hist-sum">${parseFloat(h.total).toFixed(0)} ₴</span></div><div class="hist-sub">${h.date} · ${h.items.length} позицій</div><div class="hist-actions"><button class="btn btn-ghost btn-sm" onclick="editHistory('${h.id}')" style="flex:1">✏️ Редагувати</button><button class="btn btn-primary btn-sm" onclick="histPDF('${h.id}')" style="flex:1">PDF ↗</button><button class="btn btn-danger btn-sm" onclick="deleteHistory('${h.id}')" style="width:44px">✕</button></div></div>`).join('');
 }
 
 function editHistory(id){
